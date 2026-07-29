@@ -98,6 +98,13 @@ resource "aws_security_group" "ssh" {
     cidr_blocks = ["68.231.193.224/32"]
   }
 
+  # ingress {
+  #   from_port = 80
+  #   to_port = 80
+  #   protocol = "tcp"
+  #   cidr_blocks = ["68.231.193.224/32"]
+  # }
+
   egress {
     from_port   = 0
     to_port     = 0
