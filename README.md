@@ -12,3 +12,11 @@ Key pair was fine.
 packets dropped silently, firewall. "Connection refused" means something
 answered and said no, service down or wrong port. I was debugging the
 wrong layer for 20 minutes because I didn't make that distinction.
+
+## Couldn't create EC2 Instance after creating VPC
+**Symptom:** apply failed on instance creation with an unsupported-instance-type error.
+**Assumed:** bad instance type or a region problem. 
+**Actual:** the subnet had no AZ, AWS chose a legacy one, and the instance inherited it.
+**Principle:** subnets are AZ-scoped and everything in them inherits that placement and 
+error messages sometimes point at the wrong resource, since the failure surfaced 
+on the instance while the cause was in the subnet.
