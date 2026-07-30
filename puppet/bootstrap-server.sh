@@ -16,4 +16,11 @@ cat >> /etc/puppetlabs/puppet/puppet.conf <<EOF
 server = $(hostname -f)
 EOF
 
+apt install -y git
+git clone https://github.com/rangerpar/terraform-puppet-aws.git /tmp/repo
+cp -r /tmp/repo/puppet/modules/* /etc/puppetlabs/code/environments/production/modules/
+cp /tmp/repo/puppet/manifests/site.pp /etc/puppetlabs/code/environments/production/manifests/
+chown -R root:root /etc/puppetlabs/code/environments/production/
+chmod -R a+rX /etc/puppetlabs/code/environments/production/
+
 systemctl enable --now puppetserver

@@ -1,3 +1,3 @@
-node 'ip-10-0-1-75.ec2.internal' {
+node default {
   include nginx_web
 }

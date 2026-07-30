@@ -27,7 +27,10 @@ resource "aws_instance" "app_server" {
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.puppet_agent.id]
   subnet_id              = aws_subnet.public.id
-
+  user_data = templatefile("${path.module}/../puppet/bootstrap-agent.sh.tftpl", {
+    puppet_server = aws_instance.puppet_server.private_dns
+  })
+  user_data_replace_on_change = true
   tags = {
     Name = "tf-app-server"
   }
@@ -39,6 +42,8 @@ resource "aws_instance" "puppet_server" {
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.puppet_server.id]
   subnet_id              = aws_subnet.public.id
+  user_data = file("${path.module}/../puppet/bootstrap-server.sh")
+  user_data_replace_on_change = true
 
   tags = {
     Name = "tf-puppet-server"
@@ -108,6 +113,13 @@ resource "aws_security_group" "ssh" {
   ingress {
     from_port   = 22
     to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["68.231.193.224/32"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["68.231.193.224/32"]
   }
