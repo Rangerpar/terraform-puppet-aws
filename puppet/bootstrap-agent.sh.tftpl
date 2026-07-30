@@ -7,8 +7,12 @@ dpkg -i openvox8-release-ubuntu24.04.deb
 apt update
 apt install -y openvox-agent
 
-cat >> /etc/puppetlabs/puppet/puppet.conf <<EOF
+cat > /etc/puppetlabs/puppet/csr_attributes.yaml <<EOF
+extension_requests:
+  pp_preshared_key: ${autosign_token}
+EOF
 
+cat >> /etc/puppetlabs/puppet/puppet.conf <<EOF
 [main]
 server = ${puppet_server}
 waitforcert = 60

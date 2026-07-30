@@ -28,7 +28,8 @@ resource "aws_instance" "app_server" {
   vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.puppet_agent.id]
   subnet_id              = aws_subnet.public.id
   user_data = templatefile("${path.module}/../puppet/bootstrap-agent.sh.tftpl", {
-    puppet_server = aws_instance.puppet_server.private_dns
+    puppet_server  = aws_instance.puppet_server.private_dns
+    autosign_token = random_password.autosign_token.result
   })
   user_data_replace_on_change = true
   tags = {
@@ -42,7 +43,9 @@ resource "aws_instance" "puppet_server" {
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.puppet_server.id]
   subnet_id              = aws_subnet.public.id
-  user_data = file("${path.module}/../puppet/bootstrap-server.sh")
+  user_data = templatefile("${path.module}/../puppet/bootstrap-server.sh", {
+    autosign_token = random_password.autosign_token.result
+  })
   user_data_replace_on_change = true
 
   tags = {
@@ -170,6 +173,11 @@ resource "aws_security_group" "puppet_server" {
   tags = {
     Name = "tf-puppet-server"
   }
+}
+
+resource "random_password" "autosign_token" {
+  length  = 32
+  special = false
 }
 
 output "app_server_public_ip" {
