@@ -1,37 +1,42 @@
 # terraform-puppet-aws
 
-## SSH hung with no error after applying
-**Symptom:** `ssh -i ~/.ssh/tf-lab ubuntu@<ip>` hung ~30s, then timed out.
-Instance showed running in the console.
-**Assumed:** key pair problem, wrong file, wrong permissions, or the
-public key never landed on the box.
-**Actual:** no security group attached, so the instance inherited the
-default VPC security group, which allows no inbound SSH from the internet.
-Key pair was fine.
-**Principle:** timeout vs. refused is the first diagnostic. A hang means
-packets dropped silently, firewall. "Connection refused" means something
-answered and said no, service down or wrong port. I was debugging the
-wrong layer for 20 minutes because I didn't make that distinction.
+Two-node lab demonstrating the Terraform-to-Puppet handoff on AWS.
+Built to learn the stack; not production-ready. See Limitations below.
 
-## Couldn't create EC2 Instance after creating VPC
-**Symptom:** apply failed on instance creation with an unsupported-instance-type error.
-**Assumed:** bad instance type or a region problem. 
-**Actual:** the subnet had no AZ, AWS chose a legacy one, and the instance inherited it.
-**Principle:** subnets are AZ-scoped and everything in them inherits that placement and 
-error messages sometimes point at the wrong resource, since the failure surfaced 
-on the instance while the cause was in the subnet.
+Terraform provisions a VPC, subnet, and two Ubuntu 24.04 EC2 instances.
+One runs a Puppet server; the other enrolls as an agent and is configured
+as an nginx web server without ever being logged into.
 
-## Coudln't start the puppet server due to limited ram
-**Symptom:** systemctl start failed with a generic "control process exited" message. No useful detail.
-**Diagnosis:** journalctl -u puppetserver showed the JVM failing to commit 2147483648 bytes.
-**Cause:** the package's default heap is -Xms2g -Xmx2g; the instance has 2GB total, so nothing was left for the OS.
-**Fix:** reduced heap to 512m, ample for two agents. Also had to reset-failed because systemd had rate-limited restarts.
-**Principle:** vendor defaults target production scale. systemctl status tells you that something failed; journalctl -u tells you why. 
-That escalation is the first move for any service that won't start.
+## Architecture
 
-## Puppet server ca list wouldn't run
-**Symptom:** puppetserver ca list failed with getaddrinfo: Name or service not known for the server's own hostname.
-**Assumed:** Puppet misconfiguration, or the server not listening. ss -tlnp showed java bound on 8140, which ruled that out.
-**Actual:** enable_dns_hostnames defaults to false on custom VPCs, so Amazon's resolver wouldn't answer for *.ec2.internal. Nothing to do with Puppet.
-**Principle:** Puppet identifies nodes by certificate, and certificates are issued to hostnames, so DNS is load-bearing infrastructure, not a convenience. 
-Also: a name resolution error is a name resolution error, whatever tool surfaces it. The stack under the error message matters more than the tool reporting it.
+[ASCII or Mermaid diagram: laptop → Terraform → VPC containing
+ puppet server + web node, with the 8140 arrow between them]
+
+## Prerequisites
+- AWS account and credentials configured
+- Terraform >= 1.x
+- An SSH keypair at ~/.ssh/tf-lab
+- This repo public on GitHub (the server clones it at boot)
+
+## Usage
+[the commands, plus: ~$0.03/hour, run terraform destroy when done]
+
+## Design decisions
+- Terraform provisions, Puppet configures. No remote-exec provisioners; the handoff is user_data.
+- Puppet Server heap tuned to 512m. Package default is 2GB on a 2GB instance. Chose to tune the app to the host rather than upsize, since two nodes don't need that heap.
+- Agent points at private_dns, not an IP. Puppet authenticates via certificates issued to hostnames; an IP wouldn't match the cert.
+- Security groups reference each other rather than CIDR blocks. Instance IPs change on every rebuild; group membership doesn't.
+- Manifests deployed by git clone at boot. Not scp, so a rebuilt server comes up with current code.
+
+## Limitations
+- Certificate signing is manual, doesn't scale past a handful of nodes. The production answer is policy-based autosigning with a pre-shared token, and there's a real security tradeoff there.
+- git clone at boot is a poor substitute for a control repo with r10k. No environment branches, no code versioning tied to deploys.
+- Single public subnet, no private tier or NAT gateway, omitted for cost.
+- Puppet server hostname is ephemeral, so rebuilding it invalidates every agent's trust. Production needs a stable DNS alias plus dns_alt_names on the cert.
+- No remote state backend; state is local.
+- node default in site.pp works with one node type but won't survive a second.
+
+## Debugging log
+See NOTES.md.
+
+
