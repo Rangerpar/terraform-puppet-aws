@@ -25,7 +25,7 @@ on the instance while the cause was in the subnet.
 **Symptom:** systemctl start failed with a generic "control process exited" message. No useful detail.
 **Diagnosis:** journalctl -u puppetserver showed the JVM failing to commit 2147483648 bytes.
 **Cause:** the package's default heap is -Xms2g -Xmx2g; the instance has 2GB total, so nothing was left for the OS.
-**Fix:** reduced heap to 512m — ample for two agents. Also had to reset-failed because systemd had rate-limited restarts.
+**Fix:** reduced heap to 512m, ample for two agents. Also had to reset-failed because systemd had rate-limited restarts.
 **Principle:** vendor defaults target production scale. systemctl status tells you that something failed; journalctl -u tells you why. 
 That escalation is the first move for any service that won't start.
 
@@ -33,5 +33,5 @@ That escalation is the first move for any service that won't start.
 **Symptom:** puppetserver ca list failed with getaddrinfo: Name or service not known for the server's own hostname.
 **Assumed:** Puppet misconfiguration, or the server not listening. ss -tlnp showed java bound on 8140, which ruled that out.
 **Actual:** enable_dns_hostnames defaults to false on custom VPCs, so Amazon's resolver wouldn't answer for *.ec2.internal. Nothing to do with Puppet.
-**Principle:** Puppet identifies nodes by certificate, and certificates are issued to hostnames — so DNS is load-bearing infrastructure, not a convenience. 
+**Principle:** Puppet identifies nodes by certificate, and certificates are issued to hostnames, so DNS is load-bearing infrastructure, not a convenience. 
 Also: a name resolution error is a name resolution error, whatever tool surfaces it. The stack under the error message matters more than the tool reporting it.
