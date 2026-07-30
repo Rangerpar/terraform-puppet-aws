@@ -25,13 +25,26 @@ resource "aws_instance" "app_server" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = "t3.micro"
   key_name               = aws_key_pair.deployer.key_name
-  vpc_security_group_ids = [aws_security_group.ssh.id]
+  vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.puppet_agent.id]
   subnet_id              = aws_subnet.public.id
 
   tags = {
     Name = "tf-app-server"
   }
 }
+
+resource "aws_instance" "puppet_server" {
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.small"
+  key_name               = aws_key_pair.deployer.key_name
+  vpc_security_group_ids = [aws_security_group.ssh.id, aws_security_group.puppet_server.id]
+  subnet_id              = aws_subnet.public.id
+
+  tags = {
+    Name = "tf-puppet-server"
+  }
+}
+
 
 resource "aws_key_pair" "deployer" {
   key_name   = "tf-lab"
@@ -43,8 +56,9 @@ resource "aws_key_pair" "deployer" {
 }
 
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
-
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
   tags = {
     Name = "tf-vpc"
   }
@@ -54,7 +68,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
-  availability_zone = "us-east-1d"
+  availability_zone       = "us-east-1d"
 
   tags = {
     Name = "tf-public"
@@ -98,13 +112,6 @@ resource "aws_security_group" "ssh" {
     cidr_blocks = ["68.231.193.224/32"]
   }
 
-  # ingress {
-  #   from_port = 80
-  #   to_port = 80
-  #   protocol = "tcp"
-  #   cidr_blocks = ["68.231.193.224/32"]
-  # }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -117,6 +124,51 @@ resource "aws_security_group" "ssh" {
   }
 }
 
-output "public_ip" {
+
+resource "aws_security_group" "puppet_agent" {
+  name        = "tf-puppet-agent"
+  description = "Security Group for puppet agent"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name = "tf-puppet-agent"
+  }
+}
+
+
+resource "aws_security_group" "puppet_server" {
+  name        = "tf-puppet-server"
+  description = "Security Group for puppet server"
+  vpc_id      = aws_vpc.main.id
+
+
+  ingress {
+    from_port       = 8140
+    to_port         = 8140
+    protocol        = "tcp"
+    security_groups = [aws_security_group.puppet_agent.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    Name = "tf-puppet-server"
+  }
+}
+
+output "app_server_public_ip" {
   value = aws_instance.app_server.public_ip
+}
+
+output "puppet_server_public_ip" {
+  value = aws_instance.puppet_server.public_ip
+}
+
+output "puppet_server_private_dns" {
+  description = "Hostname agents use to reach the Puppet server"
+  value       = aws_instance.puppet_server.private_dns
 }
