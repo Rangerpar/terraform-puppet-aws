@@ -1,3 +1,3 @@
 node default {
-  include nginx_web
+  include role::webserver
 }
