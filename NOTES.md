@@ -19,13 +19,28 @@ wrong layer for 20 minutes because I didn't make that distinction.
 error messages sometimes point at the wrong resource, since the failure surfaced 
 on the instance while the cause was in the subnet.
 
-## Coudln't start the puppet server due to limited ram
-**Symptom:** systemctl start failed with a generic "control process exited" message. No useful detail.
-**Diagnosis:** journalctl -u puppetserver showed the JVM failing to commit 2147483648 bytes.
+## Couldn't start the puppet server due to limited ram
+**Symptom:** `systemctl start` failed with a generic "control process exited" message. No useful detail.
+**Diagnosis:** `journalctl -u puppetserver` showed the JVM failing to commit 2147483648 bytes.
 **Cause:** the package's default heap is -Xms2g -Xmx2g; the instance has 2GB total, so nothing was left for the OS.
 **Fix:** reduced heap to 512m, ample for two agents. Also had to reset-failed because systemd had rate-limited restarts.
 **Principle:** vendor defaults target production scale. systemctl status tells you that something failed; journalctl -u tells you why. 
 That escalation is the first move for any service that won't start.
+
+## Checked a fresh server before cloud-init could finish
+**Symptom:** right after `terraform apply` completed, the Puppet module
+directory was empty and `puppetserver ca list` failed. Happened twice.
+**Assumed:** my bootstrap script had a bug, or the git clone failed.
+**Actual:** the script hadn't finished. Cloud-init took 101 seconds;
+I was checking at ~40. `set -x` output in
+/var/log/cloud-init-output.log showed every command had run fine once
+it completed.
+**Fix:** wait, or run `cloud-init status --wait`, which blocks until
+the bootstrap finishes and reports success or failure.
+**Principle:** Terraform returns when the AWS API acknowledges the
+instance exists, not when the software inside it is usable. Resource
+creation and service readiness are different events. Same reason load
+balancers have health checks and Kubernetes has readiness probes.
 
 ## Puppet server ca list wouldn't run
 **Symptom:** puppetserver ca list failed with getaddrinfo: Name or service not known for the server's own hostname.
